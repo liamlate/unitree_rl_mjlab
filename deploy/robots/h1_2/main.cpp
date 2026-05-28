@@ -2,10 +2,13 @@
 #include "FSM/State_Passive.h"
 #include "FSM/State_FixStand.h"
 #include "FSM/State_RLBase.h"
+#include <filesystem>
 
 std::unique_ptr<LowCmd_t> FSMState::lowcmd = nullptr;
 std::shared_ptr<LowState_t> FSMState::lowstate = nullptr;
-std::shared_ptr<Keyboard> FSMState::keyboard = nullptr;
+// Always initialize keyboard (same as G1). When a gamepad is connected the
+// keyboard simply stays idle; when there is no gamepad it is the only input.
+std::shared_ptr<Keyboard> FSMState::keyboard = std::make_shared<Keyboard>();
 
 void init_fsm_state()
 {
@@ -33,7 +36,15 @@ int main(int argc, char** argv)
     std::cout << "     H1-2 Controller \n";
 
     // Unitree DDS Config
-    unitree::robot::ChannelFactory::Instance()->Init(0, vm["network"].as<std::string>());
+    // Priority: H1_2_DOMAIN_ID env var (set by setup scripts) > config.yaml > default 0
+    const char* domain_env = std::getenv("H1_2_DOMAIN_ID");
+    int domain_id = domain_env ? std::stoi(domain_env)
+                  : (param::config["domain_id"] ? param::config["domain_id"].as<int>() : 0);
+    // Priority: H1_2_NETWORK env var (set by setup scripts) > --network CLI arg > ""
+    const char* network_env = std::getenv("H1_2_NETWORK");
+    std::string network = network_env ? network_env : vm["network"].as<std::string>();
+    spdlog::info("DDS domain={} network={}", domain_id, network.empty() ? "(auto)" : network);
+    unitree::robot::ChannelFactory::Instance()->Init(domain_id, network);
 
     init_fsm_state();
 
@@ -47,8 +58,16 @@ int main(int argc, char** argv)
     auto fsm = std::make_unique<CtrlFSM>(param::config["FSM"]);
     fsm->start();
 
-    std::cout << "Press [L2 + Up] to enter FixStand mode.\n";
-    std::cout << "And then press [R2 + A] to start controlling the robot.\n";
+    bool gamepad = std::filesystem::exists("/dev/input/js0");
+    const char* deploy_cfg = std::getenv("H1_2_DEPLOY_CFG");
+    bool keyboard_mode = deploy_cfg && std::string(deploy_cfg).find("real") == std::string::npos;
+    if (gamepad && !keyboard_mode) {
+        std::cout << "Input: Unitree controller  (L2+Up=FixStand, R2+A=Velocity, L2+B=Passive)\n";
+    } else {
+        std::cout << "Input: Keyboard\n";
+        std::cout << "  FSM:      i=FixStand(stand)  o=Velocity(walk)  p=Passive(limp)\n";
+        std::cout << "  Velocity: w/s=fwd/bwd  a/d=strafe  q/e=turn\n";
+    }
 
     while (true)
     {

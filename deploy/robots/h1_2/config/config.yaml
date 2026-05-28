@@ -1,3 +1,6 @@
+# DDS domain: 1 for unitree_mujoco simulation, 0 for real H1-2 robot
+domain_id: 1
+
 FSM:
   _: # enabled fsms
     Passive:
@@ -8,8 +11,10 @@ FSM:
       id: 3
       type: RLBase
   Passive:
-    transitions: 
+    transitions:
       FixStand: LT + up.on_pressed
+    keyboard_transitions:
+      FixStand: "i"     # i = stand up (FixStand)
     mode: [ # motor mode
       1,1,1,1,1,1,
       1,1,1,1,1,1,
@@ -25,9 +30,12 @@ FSM:
       2,2,2,2,2,2,2,
     ]
   FixStand:
-    transitions: 
+    transitions:
       Passive: LT + B.on_pressed
       Velocity: RT + A.on_pressed
+    keyboard_transitions:
+      Passive: "p"      # p = passive (back to limp)
+      Velocity: "o"     # o = walk (Velocity/policy)
     kp: [
       250, 250, 250, 400, 80, 40,
       250, 250, 250, 400, 80, 40,
@@ -53,6 +61,8 @@ FSM:
       ]
     ]
   Velocity:
-    transitions: 
+    transitions:
       Passive: LT + B.on_pressed
+    keyboard_transitions:
+      Passive: "p"      # p = passive (stop policy)
     policy_dir: config/policy/velocity

@@ -34,6 +34,8 @@ class PlayConfig:
   viewer: Literal["auto", "native", "viser"] = "auto"
   no_terminations: bool = False
   """Disable all termination conditions (useful for viewing motions with dummy agents)."""
+  export_onnx: bool = False
+  """Export the loaded checkpoint to policy.onnx next to the checkpoint file and exit."""
 
   # Internal flag used by demo script.
   _demo_mode: tyro.conf.Suppress[bool] = False
@@ -157,6 +159,21 @@ def run_play(task_id: str, cfg: PlayConfig):
     runner.load(
       str(resume_path), load_cfg={"actor": True}, strict=True, map_location=device
     )
+
+    # Export mode: write policy.onnx next to the checkpoint and exit.
+    if cfg.export_onnx:
+      assert log_dir is not None
+      runner.export_policy_to_onnx(str(log_dir), filename="policy.onnx")
+      onnx_path = log_dir / "policy.onnx"
+      print(f"[INFO] Exported: {onnx_path}")
+      deploy = (
+        "~/ramlab_ws/src/unitree_rl_mjlab/deploy/robots/h1_2/"
+        "config/policy/velocity/v0/exported/policy.onnx"
+      )
+      print(f"[INFO] Copy to deploy:\n  cp {onnx_path} {deploy}")
+      env.close()
+      return
+
     policy = runner.get_inference_policy(device=device)
 
   # Handle "auto" viewer selection.

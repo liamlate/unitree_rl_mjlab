@@ -44,6 +44,39 @@ public:
             }
         }
 
+        // Optional keyboard_transitions: parallel to transitions but triggered by a
+        // single key string instead of the joystick DSL. Used when no gamepad is connected.
+        // Example in config.yaml:
+        //   keyboard_transitions:
+        //     FixStand: "\r"    # Enter
+        //     Passive:  "\033"  # Esc
+        auto kb_transitions = param::config["FSM"][state_string]["keyboard_transitions"];
+        if(kb_transitions && keyboard)
+        {
+            auto kb_map = kb_transitions.as<std::map<std::string, std::string>>();
+            for(auto it = kb_map.begin(); it != kb_map.end(); ++it)
+            {
+                std::string target_fsm = it->first;
+                if(!FSMStringMap.right.count(target_fsm))
+                {
+                    spdlog::warn("FSM State_'{}' not found in FSMStringMap (keyboard_transitions)!", target_fsm);
+                    continue;
+                }
+                int fsm_id = FSMStringMap.right.at(target_fsm);
+                std::string trigger_key = it->second;
+                registered_checks.emplace_back(
+                    std::make_pair(
+                        [trigger_key]()->bool{
+                            return keyboard && keyboard->on_pressed
+                                   && keyboard->key() == trigger_key;
+                        },
+                        fsm_id
+                    )
+                );
+                spdlog::info("  Keyboard shortcut: '{}' → {}", trigger_key, target_fsm);
+            }
+        }
+
         // register for all states
         registered_checks.emplace_back(
             std::make_pair(
