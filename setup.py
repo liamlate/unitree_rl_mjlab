@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
-    "mjlab==1.3.0",
+    "mjlab>=1.3.0",
 ]
 
 # Installation operation
